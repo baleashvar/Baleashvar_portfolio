@@ -1,137 +1,259 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Float, Text } from '@react-three/drei'
+import { Float, Text, Environment, Sparkles } from '@react-three/drei'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useXP } from '../context/XPContext'
+import QuantumSkills from '../components/QuantumSkills'
+import ParticleSystem from '../components/ParticleSystem'
+import HologramMesh from '../components/HologramMaterial'
+import PostProcessing from '../components/PostProcessing'
+import * as THREE from 'three'
 
-const SkillPedestal = ({ position, skill, onClick }) => {
-  const meshRef = useRef()
-  const [hovered, setHovered] = useState(false)
+const QuantumChamber = () => {
+  const chamberRef = useRef()
   
   useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.5
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.1
+    if (chamberRef.current) {
+      chamberRef.current.rotation.y = state.clock.elapsedTime * 0.1
     }
   })
-
+  
   return (
-    <Float speed={2} rotationIntensity={1} floatIntensity={0.5}>
-      <group position={position}>
-        {/* Pedestal */}
-        <mesh position={[0, -1, 0]}>
-          <cylinderGeometry args={[0.5, 0.7, 0.3, 8]} />
-          <meshBasicMaterial color="#1a1a2e" />
+    <group ref={chamberRef}>
+      {/* Chamber walls */}
+      {[...Array(8)].map((_, i) => {
+        const angle = (i / 8) * Math.PI * 2
+        return (
+          <HologramMesh 
+            key={i}
+            position={[
+              Math.cos(angle) * 12,
+              0,
+              Math.sin(angle) * 12
+            ]}
+            rotation={[0, angle, 0]}
+          >
+            <planeGeometry args={[3, 15]} />
+          </HologramMesh>
+        )
+      })}
+      
+      {/* Floor pattern */}
+      <mesh position={[0, -7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0, 15, 64]} />
+        <meshPhysicalMaterial 
+          color="#001122"
+          metalness={0.9}
+          roughness={0.1}
+          emissive="#003366"
+          emissiveIntensity={0.2}
+        />
+      </mesh>
+      
+      {/* Ceiling energy field */}
+      <mesh position={[0, 7, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0, 15, 64]} />
+        <meshBasicMaterial 
+          color="#8b5cf6"
+          transparent
+          opacity={0.3}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+const EnergyBeams = ({ activeSkills }) => {
+  const beamsRef = useRef()
+  
+  useFrame((state) => {
+    if (beamsRef.current) {
+      beamsRef.current.children.forEach((beam, i) => {
+        beam.material.opacity = 0.5 + Math.sin(state.clock.elapsedTime * 3 + i) * 0.3
+      })
+    }
+  })
+  
+  return (
+    <group ref={beamsRef}>
+      {activeSkills.map((skill, i) => (
+        <mesh key={skill} position={[0, 0, 0]}>
+          <cylinderGeometry args={[0.1, 0.1, 20]} />
+          <meshBasicMaterial 
+            color="#ffd700"
+            transparent
+            opacity={0.6}
+          />
         </mesh>
-        
-        {/* Skill Icon */}
-        <mesh
-          ref={meshRef}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          onClick={onClick}
-          scale={hovered ? 1.2 : 1}
-        >
-          <icosahedronGeometry args={[0.8]} />
-          <meshBasicMaterial color={skill.color} wireframe />
-        </mesh>
-        
-        {/* Skill Label */}
-        <Text
-          position={[0, -1.5, 0]}
-          fontSize={0.2}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {skill.name}
-        </Text>
-      </group>
-    </Float>
+      ))}
+    </group>
   )
 }
 
 const HologramDeck = ({ onNext }) => {
-  const { addXP } = useXP()
+  const { addXP, unlockAchievement } = useXP()
   const [xpPopups, setXpPopups] = useState([])
-
-  const skills = [
-    { name: 'React', color: '#61dafb' },
-    { name: 'Node.js', color: '#68a063' },
-    { name: 'Three.js', color: '#000000' },
-    { name: 'Python', color: '#3776ab' },
-    { name: 'MongoDB', color: '#47a248' },
-    { name: 'AWS', color: '#ff9900' }
-  ]
+  const [activeSkills, setActiveSkills] = useState([])
+  const [totalInteractions, setTotalInteractions] = useState(0)
 
   const handleSkillClick = (skill) => {
-    addXP(5)
+    addXP(15)
+    setTotalInteractions(prev => prev + 1)
+    
+    // Add skill to active list
+    setActiveSkills(prev => {
+      if (!prev.includes(skill.name)) {
+        return [...prev, skill.name]
+      }
+      return prev
+    })
+    
+    // Create XP popup
     const id = Date.now()
-    setXpPopups(prev => [...prev, { id, skill: skill.name }])
+    setXpPopups(prev => [...prev, { 
+      id, 
+      skill: skill.name, 
+      xp: 15,
+      position: {
+        x: Math.random() * 100,
+        y: Math.random() * 100
+      }
+    }])
+    
     setTimeout(() => {
       setXpPopups(prev => prev.filter(p => p.id !== id))
-    }, 2000)
+    }, 3000)
+    
+    // Unlock achievements
+    if (totalInteractions === 2) {
+      unlockAchievement({ id: 'skill_seeker', name: 'Skill Seeker' })
+    }
+    if (activeSkills.length >= 5) {
+      unlockAchievement({ id: 'quantum_master', name: 'Quantum Master' })
+    }
+    if (totalInteractions >= 10) {
+      unlockAchievement({ id: 'neural_architect', name: 'Neural Architect' })
+    }
   }
 
   return (
     <div className="relative w-full h-full">
-      <Canvas camera={{ position: [0, 2, 8], fov: 75 }}>
-        {/* Room */}
-        <mesh position={[0, 0, -5]}>
-          <cylinderGeometry args={[8, 8, 0.1, 32]} />
-          <meshBasicMaterial color="#0a0a0a" />
-        </mesh>
-
-        {/* Skills arranged in circle */}
-        {skills.map((skill, index) => {
-          const angle = (index / skills.length) * Math.PI * 2
-          const radius = 3
-          return (
-            <SkillPedestal
-              key={skill.name}
-              position={[
-                Math.cos(angle) * radius,
-                0,
-                Math.sin(angle) * radius
-              ]}
-              skill={skill}
-              onClick={() => handleSkillClick(skill)}
-            />
-          )
-        })}
-
-        <ambientLight intensity={0.4} />
-        <pointLight position={[0, 5, 0]} intensity={1} color="#8b5cf6" />
+      <Canvas 
+        camera={{ position: [0, 3, 12], fov: 75 }}
+        shadows
+        gl={{ antialias: true, alpha: false }}
+        dpr={[1, 2]}
+      >
+        <Suspense fallback={null}>
+          <Environment preset="night" />
+          
+          <QuantumChamber />
+          <QuantumSkills 
+            onSkillClick={handleSkillClick}
+            activeSkills={activeSkills}
+          />
+          <EnergyBeams activeSkills={activeSkills} />
+          
+          {/* Ambient effects */}
+          <ParticleSystem count={2000} color="#8b5cf6" />
+          <Sparkles 
+            count={100}
+            scale={[20, 20, 20]}
+            size={3}
+            speed={0.4}
+            color="#ffd700"
+          />
+          
+          {/* Lighting */}
+          <ambientLight intensity={0.2} />
+          <pointLight position={[0, 8, 0]} intensity={3} color="#8b5cf6" castShadow />
+          <pointLight position={[5, 0, 5]} intensity={2} color="#00f5ff" />
+          <pointLight position={[-5, 0, -5]} intensity={2} color="#ffd700" />
+          
+          {/* Volumetric lighting */}
+          <spotLight
+            position={[0, 15, 0]}
+            angle={Math.PI / 3}
+            penumbra={1}
+            intensity={5}
+            color="#8b5cf6"
+            castShadow
+          />
+          
+          <PostProcessing />
+        </Suspense>
       </Canvas>
 
-      {/* XP Popups */}
+      {/* Enhanced XP Popups */}
       <AnimatePresence>
         {xpPopups.map((popup) => (
           <motion.div
             key={popup.id}
-            initial={{ opacity: 0, y: 0, scale: 0.5 }}
-            animate={{ opacity: 1, y: -50, scale: 1 }}
-            exit={{ opacity: 0, y: -100, scale: 0.5 }}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-neon-gold text-2xl font-bold pointer-events-none"
+            initial={{ 
+              opacity: 0, 
+              y: 0, 
+              scale: 0.5,
+              x: popup.position.x + '%',
+              y: popup.position.y + '%'
+            }}
+            animate={{ 
+              opacity: [0, 1, 1, 0], 
+              y: -100, 
+              scale: [0.5, 1.2, 1, 0.8],
+              rotate: [0, 360]
+            }}
+            exit={{ opacity: 0, scale: 0 }}
+            transition={{ duration: 3, ease: "easeOut" }}
+            className="absolute text-neon-gold text-3xl font-bold pointer-events-none z-10"
+            style={{
+              textShadow: '0 0 20px #ffd700, 0 0 40px #ffd700',
+              left: popup.position.x + '%',
+              top: popup.position.y + '%'
+            }}
           >
-            +5 XP
+            +{popup.xp} QUANTUM XP
+            <div className="text-sm text-neon-blue mt-1">
+              {popup.skill} MASTERED
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>
+
+      {/* Skill counter */}
+      <motion.div 
+        className="absolute top-8 left-8 bg-black/80 border border-neon-purple rounded-lg p-4"
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1 }}
+      >
+        <div className="text-neon-purple font-bold">QUANTUM SKILLS</div>
+        <div className="text-white text-sm">{activeSkills.length}/8 Activated</div>
+        <div className="text-neon-gold text-xs">{totalInteractions} Neural Links</div>
+      </motion.div>
 
       <motion.div 
         className="absolute bottom-8 right-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
+        transition={{ delay: 3 }}
       >
-        <button
+        <motion.button
           onClick={onNext}
-          className="px-6 py-3 bg-transparent border-2 border-neon-purple text-neon-purple neon-border hover:bg-neon-purple hover:text-black transition-all duration-300"
+          className="px-8 py-4 bg-transparent border-2 border-neon-purple text-neon-purple neon-border hover:bg-neon-purple hover:text-black transition-all duration-500 text-lg font-bold"
+          whileHover={{ 
+            scale: 1.05,
+            boxShadow: "0 0 30px #8b5cf6"
+          }}
+          whileTap={{ scale: 0.95 }}
+          disabled={activeSkills.length < 3}
         >
-          View Projects
-        </button>
+          {activeSkills.length >= 3 ? 'ENTER PROJECT DIMENSION' : `ACTIVATE ${3 - activeSkills.length} MORE SKILLS`}
+        </motion.button>
       </motion.div>
+      
+      {/* Quantum field overlay */}
+      <div className="absolute inset-0 bg-gradient-radial from-purple-900/20 via-transparent to-blue-900/30 pointer-events-none" />
     </div>
   )
 }

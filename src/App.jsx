@@ -43,6 +43,11 @@ function App() {
             />
           </Suspense>
           
+          {/* Global quantum effects */}
+          <div className="fixed inset-0 pointer-events-none z-0">
+            <div className="absolute inset-0 bg-gradient-conic from-blue-900/10 via-purple-900/5 to-cyan-900/10 animate-spin" style={{ animationDuration: '60s' }} />
+          </div>
+          
           {/* Scene Navigation */}
           <div className="fixed bottom-4 left-4 z-50 flex space-x-2">
             {scenes.map((scene, index) => (
